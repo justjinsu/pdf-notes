@@ -1,0 +1,51 @@
+[package]
+name = "pdf-notes"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+chrono = "0.4.45"
+eframe = "0.35.0"
+egui_kittest = { version = "0.35", features = ["wgpu"] }
+image = { version = "0.25.10", default-features = false, features = ["png"] }
+rfd = "0.18.0"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+unicode-normalization = "0.1.26"
+ureq = { version = "2", features = ["json"] }
+winit = { version = "0.30", default-features = false }
+
+# PDF engine for Windows / Linux: PDFium.
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+pdfium-render = { version = "0.9.5", default-features = false, features = ["pdfium_latest", "thread_safe"] }
+
+# The Mac uses its own PDFKit (PDFium only with `--features pdfium`).
+[target.'cfg(target_os = "macos")'.dependencies]
+pdfium-render = { version = "0.9.5", default-features = false, features = ["pdfium_latest", "thread_safe"], optional = true }
+objc2 = "0.6.5"
+objc2-app-kit = { version = "0.3.2", features = ["NSColor", "NSColorSpace", "NSImage", "NSWorkspace"] }
+objc2-core-foundation = "0.3.2"
+objc2-core-graphics = { version = "0.3.2", features = ["CGContext", "CGColorSpace", "CGPDFPage"] }
+objc2-foundation = { version = "0.3.2", features = ["NSString", "NSURL", "NSDictionary", "NSArray", "NSDate"] }
+objc2-pdf-kit = { version = "0.3.2", features = ["PDFDocument", "PDFPage", "PDFSelection", "PDFAnnotation", "PDFAnnotationUtilities", "objc2-core-foundation"] }
+
+[target.'cfg(windows)'.dependencies]
+# API keys go into the Windows Credential Manager.
+keyring = { version = "3", default-features = false, features = ["windows-native"] }
+
+[build-dependencies]
+# Puts the icon and version details into the Windows .exe.
+winresource = "0.1"
+
+[features]
+# Use PDFium on a Mac too (to test the Windows PDF engine without a PC).
+pdfium = ["dep:pdfium-render"]
+
+# `cargo build` (what Craft Anything runs) should still be fast to use:
+# optimise our code a little and every library fully.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3

@@ -1,0 +1,49 @@
+# Every push: build and run the tests on a Mac and on Windows.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # PDFium (the PDF engine on Windows), prebuilt by the pdfium-binaries project.
+  PDFIUM_BASE: https://github.com/bblanchon/pdfium-binaries/releases/latest/download
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Tests (PDFKit, what the Mac app uses)
+        run: cargo test
+      - name: Fetch PDFium
+        run: |
+          mkdir pdfium
+          curl -sSfL "$PDFIUM_BASE/pdfium-mac-arm64.tgz" | tar -xz -C pdfium
+          echo "PDFIUM_DIR=$PWD/pdfium/lib" >> "$GITHUB_ENV"
+      - name: Tests (PDFium, what the Windows app uses)
+        run: cargo test --features pdfium
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch PDFium
+        shell: bash
+        run: |
+          mkdir pdfium
+          curl -sSfL "$PDFIUM_BASE/pdfium-win-x64.tgz" | tar -xz -C pdfium
+          echo "PDFIUM_DIR=$(cygpath -w "$PWD/pdfium/bin")" >> "$GITHUB_ENV"
+      - name: Tests
+        run: cargo test
+      - name: Release build
+        run: cargo build --release

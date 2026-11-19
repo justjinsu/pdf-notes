@@ -1,0 +1,9 @@
+/target
+/dist
+/shots
+/pdfium
+.DS_Store
+*.saving
+# Private working notes: kept on this computer, not published.
+/MECHANICS.md
+/mechanics.json

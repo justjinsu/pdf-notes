@@ -1,0 +1,79 @@
+# Push a tag like v0.1.0 → a GitHub Release with the Mac and Windows apps.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  PDFIUM_BASE: https://github.com/bblanchon/pdfium-binaries/releases/latest/download
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - name: Build for Apple and Intel Macs
+        run: |
+          cargo build --release --target aarch64-apple-darwin
+          cargo build --release --target x86_64-apple-darwin
+          lipo -create -output pdf-notes-universal \
+            target/aarch64-apple-darwin/release/pdf-notes \
+            target/x86_64-apple-darwin/release/pdf-notes
+      - name: Make the app and the disk image
+        run: |
+          PDF_NOTES_BINARY=pdf-notes-universal PDF_NOTES_VERSION="${GITHUB_REF_NAME#v}" ./bundle.sh
+          mkdir dmg
+          cp -R "dist/PDF Notes.app" dmg/
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname "PDF Notes" -srcfolder dmg -ov -format UDZO "PDF-Notes-${GITHUB_REF_NAME}-mac.dmg"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: PDF-Notes-*-mac.dmg
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release
+      - name: Put the program and PDFium in one folder
+        shell: bash
+        run: |
+          mkdir pdfium "PDF Notes"
+          curl -sSfL "$PDFIUM_BASE/pdfium-win-x64.tgz" | tar -xz -C pdfium
+          cp target/release/pdf-notes.exe "PDF Notes/PDF Notes.exe"
+          cp pdfium/bin/pdfium.dll "PDF Notes/"
+          cp pdfium/LICENSE "PDF Notes/PDFium-LICENSE.txt"
+          cp LICENSE "PDF Notes/LICENSE.txt"
+          cp fonts/OFL.txt "PDF Notes/Pretendard-OFL.txt"
+          7z a "PDF-Notes-${GITHUB_REF_NAME}-windows-x64.zip" "PDF Notes"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: PDF-Notes-*-windows-x64.zip
+
+  publish:
+    needs: [mac, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            PDF-Notes-*-mac.dmg
+            PDF-Notes-*-windows-x64.zip
+          generate_release_notes: true
